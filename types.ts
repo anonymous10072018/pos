@@ -8,6 +8,17 @@ export interface Product {
   imageUrl?: string;
 }
 
+export interface Category {
+  id: number;
+  category: string;
+}
+
+export interface Branch {
+  id: number;
+  branchCode: string;
+  dateInserted?: string;
+}
+
 export interface SaleItem {
   productId: string;
   name: string;
@@ -23,7 +34,7 @@ export interface Sale {
   timestamp: number;
 }
 
-export type ViewState = 'register' | 'inventory' | 'reports' | 'dashboard';
+export type ViewState = 'register' | 'inventory' | 'reports' | 'dashboard' | 'fast-service';
 
 export type ThemeColor = 'orange' | 'blue' | 'emerald' | 'purple' | 'rose' | 'slate';
 

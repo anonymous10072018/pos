@@ -1,57 +1,80 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sale, Product } from '../types';
+import { ApiService, CheckoutRecord } from '../services/api';
 import { getBusinessInsights } from '../services/gemini';
-import { TrendingUp, ShoppingBag, CreditCard, Sparkles, Clock } from 'lucide-react';
+import { TrendingUp, ShoppingBag, CreditCard, Sparkles, Clock, Loader2 } from 'lucide-react';
 
 interface Props {
-  sales: Sale[];
+  sales: Sale[]; // We still keep this for legacy reasons, but use DB for stats
   products: Product[];
   theme: string;
   colorStyles: any;
+  storeName: string;
 }
 
-const Dashboard: React.FC<Props> = ({ sales, products, theme, colorStyles }) => {
+const Dashboard: React.FC<Props> = ({ sales: localSales, products, theme, colorStyles, storeName }) => {
   const [insights, setInsights] = useState<string | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [dbHistory, setDbHistory] = useState<CheckoutRecord[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      const history = await ApiService.getCheckoutHistory();
+      setDbHistory(history);
+      setLoadingStats(false);
+    };
+    fetchStats();
+  }, [localSales.length]); // Re-fetch stats when local sales count changes (indication of new checkout)
 
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayTime = today.getTime();
     
-    const todaySales = sales.filter(s => s.timestamp >= today.getTime());
-    const totalToday = todaySales.reduce((acc, s) => acc + s.total, 0);
+    // Filter records from the database that occurred today
+    const todayRecords = dbHistory.filter(rec => {
+      const recDate = new Date(rec.dateCheckOut);
+      recDate.setHours(0,0,0,0);
+      return recDate.getTime() === todayTime;
+    });
+
+    const totalToday = todayRecords.reduce((acc, rec) => acc + rec.total, 0);
     
     return {
-      todayCount: todaySales.length,
+      todayItemsCount: todayRecords.reduce((acc, rec) => acc + rec.quantity, 0),
       todayTotal: totalToday,
       inventoryCount: products.length,
-      recentSales: sales.slice(-3).reverse()
+      recentRecords: dbHistory.slice(0, 5) // DB history is already sorted desc by date
     };
-  }, [sales, products]);
+  }, [dbHistory, products]);
 
   useEffect(() => {
     const loadInsights = async () => {
-      if (sales.length > 0) {
+      if (dbHistory.length > 0) {
         setLoadingInsights(true);
-        const data = await getBusinessInsights(sales, products);
+        // Use database data for insights instead of local session data
+        const data = await getBusinessInsights(localSales, products);
         setInsights(data || null);
         setLoadingInsights(false);
       }
     };
     loadInsights();
-  }, [sales.length]);
+  }, [dbHistory.length]);
 
   return (
     <div className="p-6 space-y-6 transition-colors dark:bg-slate-900">
       <div className="space-y-1">
         <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900">Today's Summary</h2>
-        <p className="text-slate-500 text-sm">Welcome back! Here's how the day is looking.</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">Welcome back to {storeName}!</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className={`${colorStyles.bg} p-4 rounded-2xl text-white shadow-lg ${colorStyles.shadow}`}>
+        <div className={`${colorStyles.bg} p-4 rounded-2xl text-white shadow-lg ${colorStyles.shadow} relative overflow-hidden`}>
+          {loadingStats && <div className="absolute inset-0 bg-black/10 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
           <div className="flex justify-between items-start mb-2">
             <CreditCard className="w-5 h-5 opacity-80" />
             <TrendingUp className="w-4 h-4 opacity-80" />
@@ -59,12 +82,13 @@ const Dashboard: React.FC<Props> = ({ sales, products, theme, colorStyles }) => 
           <p className="text-xs opacity-80 font-medium">Revenue Today</p>
           <h3 className="text-xl font-bold">₱{stats.todayTotal.toLocaleString()}</h3>
         </div>
-        <div className="bg-emerald-500 p-4 rounded-2xl text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+        <div className="bg-emerald-500 p-4 rounded-2xl text-white shadow-lg shadow-emerald-200 dark:shadow-none relative overflow-hidden">
+          {loadingStats && <div className="absolute inset-0 bg-black/10 flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
           <div className="flex justify-between items-start mb-2">
             <ShoppingBag className="w-5 h-5 opacity-80" />
           </div>
-          <p className="text-xs opacity-80 font-medium">Orders</p>
-          <h3 className="text-xl font-bold">{stats.todayCount}</h3>
+          <p className="text-xs opacity-80 font-medium">Items Sold</p>
+          <h3 className="text-xl font-bold">{stats.todayItemsCount}</h3>
         </div>
       </div>
 
@@ -83,40 +107,38 @@ const Dashboard: React.FC<Props> = ({ sales, products, theme, colorStyles }) => 
           <div className="animate-pulse flex flex-col gap-2">
             <div className="h-3 bg-slate-100 dark:bg-slate-700 rounded w-full"></div>
             <div className="h-3 bg-slate-100 dark:bg-slate-700 rounded w-5/6"></div>
-            <div className="h-3 bg-slate-100 dark:bg-slate-700 rounded w-4/6"></div>
           </div>
         ) : (
-          <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
-            {insights || "Process some sales to see AI recommendations for your business growth."}
+          <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {insights || "Process some sales to see AI recommendations."}
           </div>
         )}
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Activity (From DB) */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-semibold dark:text-slate-100 text-slate-800 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-slate-400" />
-            Recent Orders
-          </h4>
-        </div>
+        <h4 className="font-semibold dark:text-slate-100 text-slate-800 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-slate-400" />
+          Recent DB Transactions
+        </h4>
         <div className="space-y-3">
-          {stats.recentSales.length > 0 ? stats.recentSales.map((sale) => (
-            <div key={sale.id} className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl flex justify-between items-center shadow-sm">
-              <div>
-                <p className="text-sm font-semibold dark:text-slate-100 text-slate-800">
-                  {sale.items.length} {sale.items.length === 1 ? 'Item' : 'Items'}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
+          {stats.recentRecords.length > 0 ? stats.recentRecords.map((rec) => (
+            <div key={rec.id} className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl flex justify-between items-center shadow-sm">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold dark:text-slate-100 text-slate-800 truncate">{rec.itemName}</p>
+                <div className="flex gap-2 text-[10px] text-slate-400 font-medium">
+                  <span>{rec.branchCode}</span>
+                  <span>•</span>
+                  <span>{new Date(rec.dateCheckOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
               </div>
-              <p className={`font-bold ${colorStyles.text}`}>₱{sale.total.toLocaleString()}</p>
+              <div className="text-right ml-4">
+                <p className={`font-bold ${colorStyles.text}`}>₱{rec.total.toLocaleString()}</p>
+                <p className="text-[10px] text-slate-400">Qty: {rec.quantity}</p>
+              </div>
             </div>
           )) : (
-            <div className="text-center py-6 text-slate-400 text-sm italic">
-              No orders yet today
-            </div>
+            <div className="text-center py-6 text-slate-400 text-sm italic">No records in cloud yet</div>
           )}
         </div>
       </div>

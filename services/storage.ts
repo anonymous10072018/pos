@@ -7,7 +7,8 @@ const LOCAL_KEYS = {
   CATEGORIES: 'swiftpos_categories',
   THEME: 'swiftpos_theme',
   COLOR: 'swiftpos_color',
-  STORE_NAME: 'swiftpos_store_name'
+  STORE_NAME: 'swiftpos_store_name',
+  SELECTED_BRANCH: 'swiftpos_selected_branch'
 };
 
 const INITIAL_CATEGORIES = ["Beverage", "Snacks", "Food", "Electronics", "Groceries"];
@@ -81,6 +82,14 @@ export const StorageService = {
 
   setStoreName: (name: string) => {
     localStorage.setItem(LOCAL_KEYS.STORE_NAME, name);
+  },
+
+  getSelectedBranch: (): string => {
+    return localStorage.getItem(LOCAL_KEYS.SELECTED_BRANCH) || "";
+  },
+
+  setSelectedBranch: (code: string) => {
+    localStorage.setItem(LOCAL_KEYS.SELECTED_BRANCH, code);
   },
 
   resetData: () => {

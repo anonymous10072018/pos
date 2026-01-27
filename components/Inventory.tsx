@@ -1,11 +1,12 @@
 
 import React, { useState, useRef } from 'react';
-import { Product } from '../types';
-import { Plus, Edit2, Package2, AlertCircle, Image as ImageIcon, Upload, Tag, ChevronDown, X } from 'lucide-react';
+import { Product, Category } from '../types';
+import { ApiService } from '../services/api';
+import { Plus, Edit2, Package2, ImageIcon, X, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
 interface Props {
   products: Product[];
-  categories: string[];
+  categories: Category[];
   onUpdateProducts: (products: Product[]) => void;
   theme: string;
   colorStyles: any;
@@ -15,39 +16,101 @@ const Inventory: React.FC<Props> = ({ products, categories, onUpdateProducts, th
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Product | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Custom Confirmation Modal Local State
+  const [showConfirm, setShowConfirm] = useState<{ isOpen: boolean, targetId: string | null }>({ isOpen: false, targetId: null });
+
+  const refreshProducts = async () => {
+    const latest = await ApiService.getProducts();
+    onUpdateProducts(latest);
+  };
 
   const handleEdit = (product: Product) => {
     setEditingId(product.id);
     setEditForm({ ...product });
+    setSelectedFile(null);
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editForm || !editForm.name || !editForm.category) return;
-    const newProducts = products.map(p => p.id === editForm.id ? editForm : p);
-    onUpdateProducts(newProducts);
-    setEditingId(null);
-    setEditForm(null);
+  const prepareFormData = (p: Product) => {
+    const formData = new FormData();
+    formData.append('Category', p.category);
+    formData.append('ItemName', p.name);
+    formData.append('Price', p.price.toString());
+    formData.append('Stock', p.stock.toString());
+    if (selectedFile) {
+      formData.append('Image', selectedFile);
+    }
+    return formData;
   };
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm || !editForm.name || !editForm.category) return;
-    const newProduct = { ...editForm, id: Date.now().toString() };
-    onUpdateProducts([...products, newProduct]);
-    setIsAdding(false);
-    setEditForm(null);
+    if (!editForm || !editingId) return;
+    setIsSubmitting(true);
+    
+    const success = await ApiService.updateProduct(editingId, prepareFormData(editForm));
+    if (success) {
+      await refreshProducts();
+      setEditingId(null);
+      setEditForm(null);
+    } else {
+      alert("Failed to update product.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm) return;
+    setIsSubmitting(true);
+
+    const success = await ApiService.createProduct(prepareFormData(editForm));
+    if (success) {
+      await refreshProducts();
+      setIsAdding(false);
+      setEditForm(null);
+    } else {
+      alert("Failed to create product.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const confirmDelete = async () => {
+    const id = showConfirm.targetId;
+    if (!id) return;
+    
+    setIsSubmitting(true);
+    setShowConfirm({ isOpen: false, targetId: null });
+    
+    const success = await ApiService.deleteProduct(id);
+    if (success) {
+      await refreshProducts();
+    } else {
+      alert("Failed to delete product.");
+    }
+    setIsSubmitting(false);
   };
 
   const startAdding = () => {
     setIsAdding(true);
-    setEditForm({ id: '', name: '', price: 0, category: categories[0] || 'Other', stock: 0, imageUrl: '' });
+    setSelectedFile(null);
+    setEditForm({ 
+      id: '', 
+      name: '', 
+      price: 0, 
+      category: categories[0]?.category || 'Other', 
+      stock: 0, 
+      imageUrl: '' 
+    });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editForm) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditForm({ ...editForm, imageUrl: reader.result as string });
@@ -57,42 +120,72 @@ const Inventory: React.FC<Props> = ({ products, categories, onUpdateProducts, th
   };
 
   return (
-    <div className="p-6 transition-colors dark:bg-slate-900 min-h-full">
+    <div className="p-6 transition-colors dark:bg-slate-900 min-h-full pb-32">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900">Inventory</h2>
-          <p className="text-slate-500 text-sm">{products.length} Products listed</p>
+          <p className="text-slate-500 text-sm">{products.length} Items Listed</p>
         </div>
         <button 
           onClick={startAdding}
-          className={`${colorStyles.bg} text-white p-2 rounded-xl shadow-lg ${colorStyles.shadow} flex items-center gap-1 text-sm font-semibold px-4`}
+          className={`${colorStyles.bg} text-white p-2 rounded-xl shadow-lg flex items-center gap-1 text-sm font-semibold px-4 active:scale-95 transition-transform`}
         >
           <Plus className="w-4 h-4" /> Add Item
         </button>
       </div>
 
       <div className="space-y-4">
-        {/* Add/Edit Form Overlay */}
+        {/* Delete Confirmation Modal */}
+        {showConfirm.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/70 backdrop-blur-md">
+            <div className={`rounded-[28px] w-full max-w-xs p-6 shadow-2xl border transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-rose-500" />
+                </div>
+                <div>
+                  <h4 className={`text-lg font-black ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Delete Product?</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">This will permanently remove this item from your cloud inventory.</p>
+                </div>
+                <div className="flex flex-col w-full gap-2 mt-2">
+                  <button 
+                    onClick={confirmDelete}
+                    className="w-full py-3.5 bg-rose-500 text-white rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
+                  >
+                    Yes, Delete
+                  </button>
+                  <button 
+                    onClick={() => setShowConfirm({ isOpen: false, targetId: null })}
+                    className={`w-full py-3.5 rounded-2xl font-bold text-sm active:scale-95 transition-transform ${theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Form Modal/Overlay */}
         {(isAdding || editingId) && editForm && (
           <form 
             onSubmit={isAdding ? handleAdd : handleSave}
-            className={`bg-white dark:bg-slate-800 border-2 ${colorStyles.border} p-5 rounded-3xl animate-in slide-in-from-top-4 duration-300 shadow-xl z-50 sticky top-0 mb-8`}
+            className={`bg-white dark:bg-slate-800 border-2 ${colorStyles.border} p-5 rounded-3xl shadow-xl z-50 sticky top-0 mb-8`}
           >
             <div className="flex justify-between items-center mb-4">
               <h4 className={`font-bold dark:text-slate-100 text-slate-800 flex items-center gap-2`}>
                 <Package2 className={`w-4 h-4 ${colorStyles.accent}`} /> 
                 {isAdding ? 'New Item' : 'Edit Item'}
               </h4>
-              <button type="button" onClick={() => { setIsAdding(false); setEditingId(null); }} className="text-slate-400">
+              <button type="button" onClick={() => { setIsAdding(false); setEditingId(null); }} className="text-slate-400 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <div className="space-y-4">
-              {/* Image Picker */}
-              <div className="flex flex-col items-center gap-3 py-2">
+              <div className="flex flex-col items-center gap-3">
                 <div 
-                  className="w-24 h-24 rounded-2xl bg-slate-50 dark:bg-slate-700 border-2 border-dashed border-slate-200 dark:border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer relative group"
+                  className="w-24 h-24 rounded-2xl bg-slate-50 dark:bg-slate-700 border-2 border-dashed border-slate-200 dark:border-slate-600 overflow-hidden flex items-center justify-center cursor-pointer relative"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {editForm.imageUrl ? (
@@ -100,123 +193,80 @@ const Inventory: React.FC<Props> = ({ products, categories, onUpdateProducts, th
                   ) : (
                     <ImageIcon className="w-8 h-8 text-slate-300" />
                   )}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Upload className="w-6 h-6 text-white" />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Plus className="text-white w-6 h-6" />
                   </div>
                 </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleImageUpload} 
-                />
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageChange} />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tap to upload photo</span>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Name *</label>
-                <input 
-                  required
-                  type="text" 
-                  className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border border-slate-200 dark:border-slate-600 rounded-xl text-sm ${colorStyles.ring} outline-none`}
-                  value={editForm.name}
-                  onChange={e => setEditForm({...editForm, name: e.target.value})}
-                />
+                <label className="text-[10px] uppercase font-bold text-slate-400">Item Name</label>
+                <input required type="text" className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border rounded-xl text-sm outline-none transition-colors ${theme === 'dark' ? 'border-slate-600 focus:border-slate-400' : 'border-slate-200 focus:border-slate-300'}`} value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Category *</label>
-                <div className="relative">
-                  <select
-                    required
-                    className={`w-full appearance-none pl-10 pr-10 py-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border border-slate-200 dark:border-slate-600 rounded-xl text-sm ${colorStyles.ring} outline-none`}
-                    value={editForm.category}
-                    onChange={e => setEditForm({...editForm, category: e.target.value})}
-                  >
-                    {categories.length > 0 ? categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    )) : <option value="Uncategorized">Uncategorized</option>}
-                  </select>
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
+                <label className="text-[10px] uppercase font-bold text-slate-400">Category</label>
+                <select required className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border rounded-xl text-sm outline-none transition-colors ${theme === 'dark' ? 'border-slate-600 focus:border-slate-400' : 'border-slate-200 focus:border-slate-300'}`} value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})}>
+                  {categories.map(cat => <option key={cat.id} value={cat.category}>{cat.category}</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Price (₱) *</label>
-                  <input 
-                    required
-                    type="number" 
-                    min="0"
-                    step="0.01"
-                    className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border border-slate-200 dark:border-slate-600 rounded-xl text-sm ${colorStyles.ring} outline-none`}
-                    value={editForm.price || ''}
-                    onChange={e => setEditForm({...editForm, price: parseFloat(e.target.value) || 0})}
-                  />
+                  <label className="text-[10px] uppercase font-bold text-slate-400">Price (₱)</label>
+                  <input required type="number" step="0.01" className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border rounded-xl text-sm outline-none transition-colors ${theme === 'dark' ? 'border-slate-600 focus:border-slate-400' : 'border-slate-200 focus:border-slate-300'}`} value={editForm.price} onChange={e => setEditForm({...editForm, price: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Stock (0=∞) *</label>
-                  <input 
-                    required
-                    type="number" 
-                    min="0"
-                    className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border border-slate-200 dark:border-slate-600 rounded-xl text-sm ${colorStyles.ring} outline-none`}
-                    value={editForm.stock}
-                    onChange={e => setEditForm({...editForm, stock: parseInt(e.target.value) || 0})}
-                  />
+                  <label className="text-[10px] uppercase font-bold text-slate-400">Stock Qty</label>
+                  <input required type="number" className={`w-full p-2.5 dark:bg-slate-700 dark:text-slate-100 bg-slate-50 border rounded-xl text-sm outline-none transition-colors ${theme === 'dark' ? 'border-slate-600 focus:border-slate-400' : 'border-slate-200 focus:border-slate-300'}`} value={editForm.stock} onChange={e => setEditForm({...editForm, stock: parseInt(e.target.value) || 0})} />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <button 
-                  type="submit"
-                  className={`flex-1 ${colorStyles.bg} text-white py-3 rounded-2xl text-sm font-bold shadow-lg active:scale-95 transition-transform`}
-                >
-                  {isAdding ? 'Save Product' : 'Apply Changes'}
-                </button>
-              </div>
+              <button 
+                disabled={isSubmitting}
+                type="submit" 
+                className={`w-full ${colorStyles.bg} text-white py-3 rounded-2xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-all`}
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isAdding ? 'Create Cloud Item' : 'Update Cloud Item')}
+              </button>
             </div>
           </form>
         )}
 
-        {/* Product List */}
         <div className="space-y-3">
           {products.map(product => (
-            <div key={product.id} className={`dark:bg-slate-800 bg-white p-3 rounded-2xl border dark:border-slate-700 border-slate-100 shadow-sm flex items-center gap-4 group hover:${colorStyles.border} transition-colors`}>
-              <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 border dark:border-slate-600 border-slate-50">
+            <div key={product.id} className={`dark:bg-slate-800 bg-white p-3 rounded-2xl border transition-all ${theme === 'dark' ? 'border-slate-700' : 'border-slate-100 shadow-sm'} flex items-center gap-4 group hover:${colorStyles.border}`}>
+              <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0">
                 {product.imageUrl ? (
-                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                  <img src={product.imageUrl} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-300">
                     <ImageIcon className="w-6 h-6" />
                   </div>
                 )}
               </div>
-              
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h5 className="font-bold dark:text-slate-100 text-slate-800 truncate">{product.name}</h5>
-                  {product.stock > 0 && product.stock < 10 && (
-                    <AlertCircle className="w-3 h-3 text-amber-500" />
-                  )}
-                </div>
-                <div className="flex gap-4 text-[11px] font-medium mt-1">
-                  <span className={`${colorStyles.text} font-bold`}>₱{product.price.toLocaleString()}</span>
-                  <span className={`${product.stock === 0 ? `${colorStyles.text} font-black` : (product.stock < 10 ? 'text-amber-600' : 'text-slate-400')}`}>
-                    {product.stock === 0 ? '∞ Stock' : `${product.stock} in stock`}
-                  </span>
+                <h5 className={`font-bold truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>{product.name}</h5>
+                <div className="flex gap-3 text-[10px] font-bold mt-1">
+                  <span className={`${colorStyles.text} uppercase`}>{product.category}</span>
+                  <span className={`${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>₱{product.price.toLocaleString()}</span>
+                  <span className={`${product.stock < 10 ? 'text-rose-500' : 'text-slate-400'}`}>{product.stock} Units</span>
                 </div>
               </div>
-
-              <button 
-                onClick={() => handleEdit(product)}
-                className={`p-2 text-slate-400 hover:${colorStyles.text} hover:${colorStyles.bgLight} rounded-xl transition-all`}
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => handleEdit(product)} className={`p-2 text-slate-400 hover:${colorStyles.text} transition-colors`}><Edit2 className="w-4 h-4" /></button>
+                <button onClick={() => setShowConfirm({ isOpen: true, targetId: product.id })} className={`p-2 text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all active:scale-90`}><Trash2 className="w-4 h-4" /></button>
+              </div>
             </div>
           ))}
+          {products.length === 0 && (
+            <div className="text-center py-20">
+              <Package2 className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
+              <p className="text-slate-400 italic text-sm">No products found in the cloud.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

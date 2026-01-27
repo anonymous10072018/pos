@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ViewState, Product, Sale, ThemeColor } from './types';
+import { ViewState, Product, Sale, ThemeColor, Category, Branch } from './types';
 import { StorageService } from './services/storage';
+import { ApiService } from './services/api';
 import Register from './components/Register';
+import FastService from './components/FastService';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import Dashboard from './components/Dashboard';
@@ -17,7 +19,23 @@ import {
   Moon,
   Sun,
   Palette,
-  Database
+  Database,
+  Save,
+  Loader2,
+  Check,
+  Search,
+  Trash2,
+  AlertCircle,
+  Edit2,
+  MapPin,
+  Building2,
+  ChevronRight,
+  ChevronLeft,
+  Settings2,
+  Tags,
+  AlertTriangle,
+  Zap,
+  ShoppingCart
 } from 'lucide-react';
 
 const COLOR_OPTIONS: { name: string, value: ThemeColor, class: string }[] = [
@@ -29,30 +47,79 @@ const COLOR_OPTIONS: { name: string, value: ThemeColor, class: string }[] = [
   { name: 'Slate', value: 'slate', class: 'bg-slate-700' },
 ];
 
+type SettingsPage = 'menu' | 'general' | 'categories' | 'branches';
+
+interface ConfirmState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+}
+
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  
   const [showSettings, setShowSettings] = useState(false);
+  const [activeSettingsPage, setActiveSettingsPage] = useState<SettingsPage>('menu');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [primaryColor, setPrimaryColor] = useState<ThemeColor>('orange');
   const [storeName, setStoreName] = useState("My POS Store");
-  const [newCatName, setNewCatName] = useState('');
+  
+  const [confirmState, setConfirmState] = useState<ConfirmState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
-  // Initial Data Load
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedName, setLastSyncedName] = useState("");
+  const [syncSuccess, setSyncSuccess] = useState(false);
+
   useEffect(() => {
     setProducts(StorageService.loadProducts());
     setSales(StorageService.loadSales());
-    setCategories(StorageService.loadCategories());
     setTheme(StorageService.getTheme());
     setPrimaryColor(StorageService.getThemeColor());
-    setStoreName(StorageService.getStoreName());
+    setSelectedBranch(StorageService.getSelectedBranch());
+    
+    const localStoreName = StorageService.getStoreName();
+    setStoreName(localStoreName);
+    setLastSyncedName(localStoreName);
     
     if (StorageService.getTheme() === 'dark') {
       document.documentElement.classList.add('dark');
     }
+
+    syncFromRemote();
   }, []);
+
+  useEffect(() => {
+    document.title = storeName;
+  }, [storeName]);
+
+  const syncFromRemote = async () => {
+    const remoteName = await ApiService.getStoreName();
+    if (remoteName) {
+      setStoreName(remoteName);
+      setLastSyncedName(remoteName);
+      StorageService.setStoreName(remoteName);
+    }
+    const remoteCats = await ApiService.getCategories();
+    if (remoteCats) setCategories(remoteCats);
+    const remoteProducts = await ApiService.getProducts();
+    if (remoteProducts && remoteProducts.length > 0) {
+      setProducts(remoteProducts);
+      StorageService.saveProducts(remoteProducts);
+    }
+    const remoteBranches = await ApiService.getBranches();
+    if (remoteBranches) setBranches(remoteBranches);
+  };
 
   const colorStyles = useMemo(() => {
     const c = primaryColor;
@@ -62,46 +129,26 @@ const App: React.FC = () => {
       text: `text-${c}-600 dark:text-${c}-400`,
       border: `border-${c}-500`,
       borderLight: `border-${c}-100 dark:border-${c}-800`,
-      hover: `hover:bg-${c}-700`,
       accent: `text-${c}-500`,
-      fill: `fill-${c}-600`,
       ring: `focus:ring-${c}-500`,
-      shadow: `shadow-${c}-100 dark:shadow-none`
     };
   }, [primaryColor]);
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    StorageService.setTheme(newTheme);
-    document.documentElement.classList.toggle('dark');
+  const handleUpdateStoreRemote = async () => {
+    if (!storeName.trim() || storeName === lastSyncedName) return;
+    setIsSyncing(true);
+    const success = await ApiService.updateStoreName(storeName.trim());
+    if (success) {
+      setLastSyncedName(storeName.trim());
+      StorageService.setStoreName(storeName.trim());
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 3000);
+    }
+    setIsSyncing(false);
   };
 
-  const updateStoreName = (name: string) => {
-    setStoreName(name);
-    StorageService.setStoreName(name);
-  };
-
-  const updateThemeColor = (color: ThemeColor) => {
-    setPrimaryColor(color);
-    StorageService.setThemeColor(color);
-  };
-
-  const handleAddCategory = () => {
-    if (!newCatName.trim() || categories.includes(newCatName.trim())) return;
-    const updated = [...categories, newCatName.trim()].sort();
-    setCategories(updated);
-    StorageService.saveCategories(updated);
-    setNewCatName('');
-  };
-
-  const handleRemoveCategory = (cat: string) => {
-    const updated = categories.filter(c => c !== cat);
-    setCategories(updated);
-    StorageService.saveCategories(updated);
-  };
-
-  const handleSaleComplete = (newSale: Sale) => {
+  const handleSaleComplete = async (newSale: Sale) => {
+    // 1. Update Local Stats for UI
     const updatedSales = [...sales, newSale];
     const updatedProducts = products.map(p => {
       const soldItem = newSale.items.find(si => si.productId === p.id);
@@ -115,137 +162,323 @@ const App: React.FC = () => {
     setProducts(updatedProducts);
     StorageService.saveSales(updatedSales);
     StorageService.saveProducts(updatedProducts);
+
+    // 2. Sync to Cloud Database (BranchCheckout)
+    for (const item of newSale.items) {
+      await ApiService.checkoutItem({
+        branchCode: selectedBranch,
+        category: item.category,
+        itemName: item.name,
+        pricePerItem: item.priceAtSale,
+        quantity: item.quantity
+      });
+    }
+
     setActiveView('dashboard');
   };
 
-  const handleUpdateProducts = (updatedProducts: Product[]) => {
-    setProducts(updatedProducts);
-    StorageService.saveProducts(updatedProducts);
-  };
-
-  const renderView = () => {
-    switch (activeView) {
-      case 'dashboard':
-        return <Dashboard sales={sales} products={products} theme={theme} colorStyles={colorStyles} />;
-      case 'inventory':
-        return <Inventory products={products} categories={categories} onUpdateProducts={handleUpdateProducts} theme={theme} colorStyles={colorStyles} />;
-      case 'reports':
-        return <Reports sales={sales} theme={theme} colorStyles={colorStyles} />;
-      case 'register':
-        return <Register products={products} categories={categories} onSaleComplete={handleSaleComplete} theme={theme} colorStyles={colorStyles} />;
-      default:
-        return <Dashboard sales={sales} products={products} theme={theme} colorStyles={colorStyles} />;
+  const handleAddCategory = async () => {
+    const trimmed = newCatName.trim();
+    if (!trimmed) return;
+    const result = await ApiService.createCategory(trimmed);
+    if (result) {
+      setCategories(prev => [result, ...prev]);
+      setNewCatName('');
     }
   };
+
+  const handleUpdateCategory = async (id: number) => {
+    const trimmed = editingCatName.trim();
+    if (!trimmed) return;
+    const result = await ApiService.updateCategory(id, trimmed);
+    if (result) {
+      setCategories(prev => prev.map(c => c.id === id ? result : c));
+      setEditingCatId(null);
+    }
+  };
+
+  const handleDeleteCategory = (id: number) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Delete Category?',
+      message: 'This will remove the category from the database. Existing items will remain.',
+      onConfirm: async () => {
+        if (await ApiService.deleteCategory(id)) {
+          setCategories(prev => prev.filter(c => c.id !== id));
+        }
+        setConfirmState(p => ({ ...p, isOpen: false }));
+      }
+    });
+  };
+
+  const handleAddBranch = async () => {
+    const trimmed = newBranchCode.trim();
+    if (!trimmed) return;
+    const result = await ApiService.createBranch(trimmed);
+    if (result) {
+      setBranches(prev => [result, ...prev]);
+      setNewBranchCode('');
+    }
+  };
+
+  const handleUpdateBranch = async (id: number) => {
+    const trimmed = editingBranchCode.trim();
+    if (!trimmed) return;
+    const result = await ApiService.updateBranch(id, trimmed);
+    if (result) {
+      setBranches(prev => prev.map(b => b.id === id ? result : b));
+      setEditingBranchId(null);
+    }
+  };
+
+  const handleDeleteBranch = (id: number) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Remove Branch Code?',
+      message: 'Are you sure? This branch code will be deleted from the cloud.',
+      onConfirm: async () => {
+        const branchToDelete = branches.find(b => b.id === id);
+        if (await ApiService.deleteBranch(id)) {
+          setBranches(prev => prev.filter(b => b.id !== id));
+          if (selectedBranch === branchToDelete?.branchCode) {
+            setSelectedBranch("");
+            StorageService.setSelectedBranch("");
+          }
+        }
+        setConfirmState(p => ({ ...p, isOpen: false }));
+      }
+    });
+  };
+
+  const handleSelectBranch = (code: string) => {
+    setSelectedBranch(code);
+    StorageService.setSelectedBranch(code);
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    StorageService.setTheme(newTheme);
+    document.documentElement.classList.toggle('dark');
+  };
+
+  // UI Local States
+  const [newCatName, setNewCatName] = useState('');
+  const [editingCatId, setEditingCatId] = useState<number | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
+  const [newBranchCode, setNewBranchCode] = useState('');
+  const [editingBranchId, setEditingBranchId] = useState<number | null>(null);
+  const [editingBranchCode, setEditingBranchCode] = useState('');
 
   return (
     <div className={`flex flex-col h-screen max-w-md mx-auto shadow-2xl overflow-hidden relative border-x transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
       <header className={`px-6 py-4 border-b flex items-center justify-between sticky top-0 z-10 transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 ${colorStyles.bg} rounded-lg flex items-center justify-center shadow-lg`}>
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className={`w-9 h-9 flex-shrink-0 ${colorStyles.bg} rounded-xl flex items-center justify-center shadow-lg`}>
             <Store className="w-5 h-5 text-white" />
           </div>
-          <h1 className={`text-lg font-black tracking-tight leading-none transition-colors ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-            {storeName}
-          </h1>
+          <div className="flex flex-col min-w-0">
+            <h1 className={`text-sm font-black tracking-tight leading-none transition-colors truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+              {storeName}
+            </h1>
+            <div className="flex items-center gap-1.5 mt-1">
+               {selectedBranch ? (
+                 <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md ${colorStyles.bgLight} ${colorStyles.text} border dark:border-white/5`}>
+                   <MapPin className="w-2.5 h-2.5" />
+                   <span className="text-[9px] font-black uppercase tracking-widest truncate">{selectedBranch}</span>
+                 </div>
+               ) : (
+                 <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                   <AlertCircle className="w-2.5 h-2.5" />
+                   <span className="text-[9px] font-black uppercase tracking-widest">NO BRANCH</span>
+                 </div>
+               )}
+            </div>
+          </div>
         </div>
-        <button onClick={() => setShowSettings(true)} className={`p-2 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}>
+        <button onClick={() => { setShowSettings(true); setActiveSettingsPage('menu'); }} className={`p-2.5 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}>
           <SettingsIcon className="w-5 h-5" />
         </button>
       </header>
 
       <main className="flex-1 overflow-y-auto no-scrollbar pb-24">
-        {renderView()}
+        {activeView === 'dashboard' && <Dashboard sales={sales} products={products} theme={theme} colorStyles={colorStyles} storeName={storeName} />}
+        {activeView === 'register' && (
+          <Register 
+            products={products} 
+            categories={categories} 
+            onSaleComplete={handleSaleComplete} 
+            theme={theme} 
+            colorStyles={colorStyles}
+            selectedBranch={selectedBranch}
+            branches={branches}
+            onSelectBranch={handleSelectBranch}
+            onManageBranches={() => { setShowSettings(true); setActiveSettingsPage('branches'); }}
+          />
+        )}
+        {activeView === 'fast-service' && (
+          <FastService 
+            products={products} 
+            categories={categories} 
+            onSaleComplete={handleSaleComplete} 
+            theme={theme} 
+            colorStyles={colorStyles} 
+            selectedBranch={selectedBranch}
+            branches={branches}
+            onSelectBranch={handleSelectBranch}
+            onManageBranches={() => { setShowSettings(true); setActiveSettingsPage('branches'); }}
+          />
+        )}
+        {activeView === 'inventory' && <Inventory products={products} categories={categories} onUpdateProducts={(p) => { setProducts(p); StorageService.saveProducts(p); }} theme={theme} colorStyles={colorStyles} />}
+        {activeView === 'reports' && <Reports theme={theme} colorStyles={colorStyles} />}
       </main>
 
-      {activeView !== 'register' && (
-        <button onClick={() => setActiveView('register')} className={`fixed bottom-24 right-6 w-14 h-14 ${colorStyles.bg} text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-90 transition-transform ${colorStyles.hover}`}>
-          <Plus className="w-8 h-8" />
-        </button>
-      )}
-
-      <nav className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t px-8 py-2 flex justify-between items-center z-20 pb-safe transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-        <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard className="w-6 h-6" />} label="Home" activeClass={colorStyles.text} theme={theme} />
-        <NavItem active={activeView === 'inventory'} onClick={() => setActiveView('inventory')} icon={<Package className="w-6 h-6" />} label="Items" activeClass={colorStyles.text} theme={theme} />
-        <NavItem active={activeView === 'reports'} onClick={() => setActiveView('reports')} icon={<BarChart3 className="w-6 h-6" />} label="Reports" activeClass={colorStyles.text} theme={theme} />
+      <nav className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t px-6 py-2 flex justify-between items-center z-20 pb-safe transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard className="w-5 h-5" />} label="Home" activeClass={colorStyles.text} theme={theme} />
+        <NavItem active={activeView === 'register'} onClick={() => setActiveView('register')} icon={<ShoppingCart className="w-5 h-5" />} label="Cart" activeClass={colorStyles.text} theme={theme} />
+        <NavItem active={activeView === 'fast-service'} onClick={() => setActiveView('fast-service')} icon={<Zap className="w-5 h-5" />} label="Fast" activeClass={colorStyles.text} theme={theme} />
+        <NavItem active={activeView === 'inventory'} onClick={() => setActiveView('inventory')} icon={<Package className="w-5 h-5" />} label="Items" activeClass={colorStyles.text} theme={theme} />
+        <NavItem active={activeView === 'reports'} onClick={() => setActiveView('reports')} icon={<BarChart3 className="w-5 h-5" />} label="Stats" activeClass={colorStyles.text} theme={theme} />
       </nav>
 
+      {/* Confirmation Modal */}
+      {confirmState.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/80 backdrop-blur-md">
+          <div className={`rounded-[32px] w-full max-w-xs p-6 shadow-2xl transition-colors border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+            <div className="flex flex-col items-center text-center gap-5">
+              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-rose-500" />
+              </div>
+              <div>
+                <h4 className={`text-lg font-black ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>{confirmState.title}</h4>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">{confirmState.message}</p>
+              </div>
+              <div className="flex flex-col w-full gap-2">
+                <button onClick={confirmState.onConfirm} className="w-full py-4 bg-rose-500 text-white rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-transform">Yes, Delete</button>
+                <button onClick={() => setConfirmState(p => ({ ...p, isOpen: false }))} className={`w-full py-4 rounded-2xl font-black text-sm active:scale-95 transition-transform ${theme === 'dark' ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
-          <div className={`rounded-[32px] w-full max-w-sm p-6 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar transition-colors ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className={`text-xl font-black ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 p-2"><X className="w-6 h-6" /></button>
+          <div className={`rounded-[32px] w-full max-w-sm flex flex-col shadow-2xl h-[80vh] overflow-hidden transition-colors ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'}`}>
+            <div className={`px-6 py-5 border-b flex items-center gap-3 ${theme === 'dark' ? 'border-slate-700' : 'border-slate-100'}`}>
+              {activeSettingsPage !== 'menu' && (
+                <button onClick={() => setActiveSettingsPage('menu')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+              <h3 className={`text-lg font-black capitalize ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                {activeSettingsPage === 'menu' ? 'Settings' : activeSettingsPage}
+              </h3>
+              <button onClick={() => setShowSettings(false)} className="ml-auto text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
-            
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Business</label>
-                <div className={`p-4 rounded-2xl space-y-3 ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-50'}`}>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Store Name</span>
-                    <input type="text" value={storeName} onChange={(e) => updateStoreName(e.target.value)} className={`w-full p-2.5 rounded-xl text-sm outline-none border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`} />
+
+            <div className="flex-1 overflow-y-auto no-scrollbar p-6">
+              {activeSettingsPage === 'menu' && (
+                <div className="space-y-4">
+                  <SettingsMenuBtn icon={<Settings2 className="w-5 h-5" />} label="General Store Info" desc="Branding & appearance" onClick={() => setActiveSettingsPage('general')} theme={theme} />
+                  <SettingsMenuBtn icon={<Tags className="w-5 h-5" />} label="Categories" desc="Item group management" onClick={() => setActiveSettingsPage('categories')} theme={theme} />
+                  <SettingsMenuBtn icon={<Building2 className="w-5 h-5" />} label="Branches" desc="Cloud branch sync" onClick={() => setActiveSettingsPage('branches')} theme={theme} />
+                  <div className="pt-8">
+                    <button onClick={() => { 
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Factory Reset?',
+                        message: 'This will clear all local storage. Cloud data is safe.',
+                        onConfirm: () => StorageService.resetData()
+                      });
+                    }} className="w-full py-3 bg-rose-600/10 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest">
+                      Reset Local Data
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-3">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Category Customization</label>
-                <div className={`p-4 rounded-2xl space-y-4 ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-50'}`}>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="New category..."
-                      className={`flex-1 p-2.5 rounded-xl text-sm outline-none border ${theme === 'dark' ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                    />
-                    <button onClick={handleAddCategory} className={`${colorStyles.bg} text-white p-2.5 rounded-xl shadow-lg`}><Plus className="w-5 h-5" /></button>
+              {activeSettingsPage === 'general' && (
+                <div className="space-y-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Store Branding</label>
+                    <div className="flex gap-2">
+                      <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} className={`flex-1 p-3.5 rounded-2xl text-sm font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100 focus:border-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-300'}`} />
+                      <button onClick={handleUpdateStoreRemote} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}>{isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}</button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {categories.map(cat => (
-                      <div key={cat} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-600 text-slate-300' : 'bg-white border-slate-100 text-slate-600'}`}>
-                        {cat}
-                        <button onClick={() => handleRemoveCategory(cat)} className="text-rose-400 hover:text-rose-500"><X className="w-3.5 h-3.5" /></button>
+                  <div className="space-y-3">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Theme & Colors</label>
+                    <div className={`p-5 rounded-[24px] space-y-5 transition-colors ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                      <button onClick={toggleTheme} className="w-full flex items-center justify-between">
+                         <span className={`font-bold text-sm ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Dark Mode</span>
+                         <div className={`w-12 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? colorStyles.bg : 'bg-slate-300'}`}>
+                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0 shadow-sm'}`} />
+                         </div>
+                      </button>
+                      <div className="grid grid-cols-6 gap-2">
+                        {COLOR_OPTIONS.map(opt => (
+                          <button key={opt.value} onClick={() => {setPrimaryColor(opt.value); StorageService.setThemeColor(opt.value);}} className={`w-8 h-8 rounded-full ${opt.class} ${primaryColor === opt.value ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSettingsPage === 'categories' && (
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Add Category</label>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="e.g. Snacks..." className={`flex-1 p-3.5 rounded-2xl text-sm font-bold outline-none border ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-200'}`} value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+                      <button onClick={handleAddCategory} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {categories.map(c => (
+                      <div key={c.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm'}`}>
+                        {editingCatId === c.id ? (
+                          <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingCatName} onChange={e => setEditingCatName(e.target.value)} /><button onClick={() => handleUpdateCategory(c.id)}><Check className="w-5 h-5 text-emerald-500" /></button></div>
+                        ) : (
+                          <><span className="text-sm font-bold">{c.category}</span><div className="flex items-center gap-2"><button onClick={() => { setEditingCatId(c.id); setEditingCatName(c.category); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteCategory(c.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-3">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Visuals</label>
-                <div className={`p-4 rounded-2xl space-y-4 ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-50'}`}>
-                  <button onClick={toggleTheme} className={`w-full flex items-center justify-between p-2 rounded-xl transition-all ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-                    <div className="flex items-center gap-3">
-                      {theme === 'light' ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-400" />}
-                      <span className="font-semibold text-sm">{theme === 'light' ? 'Light' : 'Dark'} Mode</span>
+              {activeSettingsPage === 'branches' && (
+                <div className="space-y-8">
+                   <div className="space-y-3">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Select Branch</label>
+                    <select value={selectedBranch} onChange={(e) => handleSelectBranch(e.target.value)} className={`w-full p-4 rounded-2xl text-sm font-bold outline-none border ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-200'}`}>
+                      <option value="">No branch selected</option>
+                      {branches.map(b => <option key={b.id} value={b.branchCode}>{b.branchCode}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Add Branch Code</label>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="BR-101..." className={`flex-1 p-3.5 rounded-2xl text-sm font-bold border ${theme === 'dark' ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'}`} value={newBranchCode} onChange={e => setNewBranchCode(e.target.value)} />
+                      <button onClick={handleAddBranch} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
                     </div>
-                    <div className={`w-10 h-5 rounded-full p-1 transition-colors ${theme === 'dark' ? colorStyles.bg : 'bg-slate-300'}`}>
-                      <div className={`w-3 h-3 bg-white rounded-full transition-transform ${theme === 'dark' ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </div>
-                  </button>
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5"><Palette className="w-3.5 h-3.5" /> Color Theme</span>
-                    <div className="grid grid-cols-6 gap-2">
-                      {COLOR_OPTIONS.map(opt => (
-                        <button key={opt.value} onClick={() => updateThemeColor(opt.value)} className={`w-8 h-8 rounded-full ${opt.class} ${primaryColor === opt.value ? 'ring-4 ring-white dark:ring-slate-400 shadow-lg' : ''} transition-all`} />
+                    <div className="space-y-2">
+                      {branches.map(b => (
+                        <div key={b.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm'}`}>
+                          {editingBranchId === b.id ? (
+                            <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingBranchCode} onChange={e => setEditingBranchCode(e.target.value)} /><button onClick={() => handleUpdateBranch(b.id)}><Check className="w-5 h-5 text-emerald-500" /></button></div>
+                          ) : (
+                            <><div className="flex items-center gap-3"><div className={`w-2 h-2 rounded-full ${selectedBranch === b.branchCode ? 'bg-emerald-500' : 'bg-slate-300'}`} /><span className="text-sm font-bold">{b.branchCode}</span></div><div className="flex items-center gap-2"><button onClick={() => { setEditingBranchId(b.id); setEditingBranchCode(b.branchCode); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteBranch(b.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="pt-2 flex flex-col gap-2">
-                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl">
-                  <Database className="w-5 h-5 text-blue-500" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">Local Storage Mode</span>
-                    <span className="text-[9px] text-blue-500">All data is kept on this device only.</span>
-                  </div>
-                </div>
-                <button onClick={() => StorageService.resetData()} className="w-full py-2.5 bg-rose-600/10 text-rose-600 rounded-xl text-xs font-bold border border-rose-200 dark:border-rose-900/30">Wipe Data & Reset App</button>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -254,10 +487,18 @@ const App: React.FC = () => {
   );
 };
 
+const SettingsMenuBtn: React.FC<{ icon: React.ReactNode, label: string, desc: string, onClick: () => void, theme: string }> = ({ icon, label, desc, onClick, theme }) => (
+  <button onClick={onClick} className={`w-full flex items-center gap-4 p-5 rounded-[24px] text-left transition-all border group active:scale-[0.98] ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm text-slate-900'}`}>
+    <div className={`p-3 rounded-2xl transition-all ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500'} group-hover:scale-110`}>{icon}</div>
+    <div className="flex-1 overflow-hidden"><h4 className="text-sm font-bold truncate">{label}</h4><p className="text-[11px] text-slate-500 truncate">{desc}</p></div>
+    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:translate-x-1 transition-transform" />
+  </button>
+);
+
 const NavItem: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string; activeClass: string, theme: string }> = ({ active, onClick, icon, label, activeClass, theme }) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all duration-200 py-1 ${active ? activeClass : (theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}`}>
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 py-1 transition-all ${active ? activeClass : (theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}`}>
     <div className={`transition-transform duration-300 ${active ? 'scale-110' : 'scale-100'}`}>{icon}</div>
-    {label && <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>}
+    <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
   </button>
 );
 
