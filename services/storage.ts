@@ -1,25 +1,16 @@
 
 import { Product, Sale, ThemeColor } from '../types';
 
-const STORAGE_KEYS = {
+const LOCAL_KEYS = {
   PRODUCTS: 'swiftpos_products',
   SALES: 'swiftpos_sales',
+  CATEGORIES: 'swiftpos_categories',
   THEME: 'swiftpos_theme',
   COLOR: 'swiftpos_color',
-  STORE_NAME: 'swiftpos_store_name',
-  CATEGORIES: 'swiftpos_categories'
+  STORE_NAME: 'swiftpos_store_name'
 };
 
-const INITIAL_CATEGORIES = [
-  "Beverage",
-  "Snacks",
-  "Food",
-  "Electronics",
-  "Clothing",
-  "Groceries",
-  "Health & Beauty",
-  "Household"
-];
+const INITIAL_CATEGORIES = ["Beverage", "Snacks", "Food", "Electronics", "Groceries"];
 
 const INITIAL_PRODUCTS: Product[] = [
   { 
@@ -41,61 +32,59 @@ const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export const StorageService = {
-  getProducts: (): Product[] => {
-    const data = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+  loadProducts: (): Product[] => {
+    const data = localStorage.getItem(LOCAL_KEYS.PRODUCTS);
     return data ? JSON.parse(data) : INITIAL_PRODUCTS;
   },
 
   saveProducts: (products: Product[]) => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    localStorage.setItem(LOCAL_KEYS.PRODUCTS, JSON.stringify(products));
   },
 
-  getSales: (): Sale[] => {
-    const data = localStorage.getItem(STORAGE_KEYS.SALES);
+  loadSales: (): Sale[] => {
+    const data = localStorage.getItem(LOCAL_KEYS.SALES);
     return data ? JSON.parse(data) : [];
   },
 
-  saveSale: (sale: Sale) => {
-    const sales = StorageService.getSales();
-    sales.push(sale);
-    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+  saveSales: (sales: Sale[]) => {
+    localStorage.setItem(LOCAL_KEYS.SALES, JSON.stringify(sales));
   },
 
-  getTheme: (): 'light' | 'dark' => {
-    return (localStorage.getItem(STORAGE_KEYS.THEME) as 'light' | 'dark') || 'light';
-  },
-
-  setTheme: (theme: 'light' | 'dark') => {
-    localStorage.setItem(STORAGE_KEYS.THEME, theme);
-  },
-
-  getThemeColor: (): ThemeColor => {
-    return (localStorage.getItem(STORAGE_KEYS.COLOR) as ThemeColor) || 'orange';
-  },
-
-  setThemeColor: (color: ThemeColor) => {
-    localStorage.setItem(STORAGE_KEYS.COLOR, color);
-  },
-
-  getStoreName: (): string => {
-    return localStorage.getItem(STORAGE_KEYS.STORE_NAME) || "Rabal's POS";
-  },
-
-  setStoreName: (name: string) => {
-    localStorage.setItem(STORAGE_KEYS.STORE_NAME, name);
-  },
-
-  getCategories: (): string[] => {
-    const data = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+  loadCategories: (): string[] => {
+    const data = localStorage.getItem(LOCAL_KEYS.CATEGORIES);
     return data ? JSON.parse(data) : INITIAL_CATEGORIES;
   },
 
   saveCategories: (categories: string[]) => {
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+    localStorage.setItem(LOCAL_KEYS.CATEGORIES, JSON.stringify(categories));
+  },
+
+  getTheme: (): 'light' | 'dark' => {
+    return (localStorage.getItem(LOCAL_KEYS.THEME) as 'light' | 'dark') || 'light';
+  },
+
+  setTheme: (theme: 'light' | 'dark') => {
+    localStorage.setItem(LOCAL_KEYS.THEME, theme);
+  },
+
+  getThemeColor: (): ThemeColor => {
+    return (localStorage.getItem(LOCAL_KEYS.COLOR) as ThemeColor) || 'orange';
+  },
+
+  setThemeColor: (color: ThemeColor) => {
+    localStorage.setItem(LOCAL_KEYS.COLOR, color);
+  },
+
+  getStoreName: (): string => {
+    return localStorage.getItem(LOCAL_KEYS.STORE_NAME) || "My POS Store";
+  },
+
+  setStoreName: (name: string) => {
+    localStorage.setItem(LOCAL_KEYS.STORE_NAME, name);
   },
 
   resetData: () => {
     localStorage.clear();
-    return true;
+    window.location.reload();
   }
 };

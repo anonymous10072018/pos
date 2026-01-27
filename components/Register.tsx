@@ -32,9 +32,7 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
     setCart(prev => {
       const existing = prev.find(i => i.productId === product.id);
       if (existing) {
-        if (product.stock > 0 && existing.quantity >= product.stock) {
-          return prev;
-        }
+        if (product.stock > 0 && existing.quantity >= product.stock) return prev;
         return prev.map(i => i.productId === product.id 
           ? { ...i, quantity: i.quantity + 1 } 
           : i
@@ -75,14 +73,12 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    
     const newSale: Sale = {
-      id: Date.now().toString(),
+      id: `TRX-${Date.now().toString().slice(-6)}`,
       items: [...cart],
       total: total,
       timestamp: Date.now()
     };
-    
     onSaleComplete(newSale);
     setCart([]);
     setShowCart(false);
@@ -105,18 +101,14 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
           </div>
         </div>
         
-        {/* Category Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-3">
-          <div className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${selectedCategory === 'All' ? colorStyles.bgLight : 'bg-slate-50 dark:bg-slate-700'}`}>
-            <Filter className={`w-3.5 h-3.5 ${selectedCategory === 'All' ? colorStyles.text : 'text-slate-400'}`} />
-          </div>
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                 selectedCategory === cat 
-                  ? `${colorStyles.bg} text-white shadow-md ${colorStyles.shadow}` 
+                  ? `${colorStyles.bg} text-white shadow-lg` 
                   : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600'
               }`}
             >
@@ -132,62 +124,36 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
           <button
             key={product.id}
             onClick={() => addToCart(product)}
-            className={`flex flex-col border rounded-2xl text-left transition-all relative overflow-hidden group dark:bg-slate-800 dark:border-slate-700 bg-white border-slate-100 hover:${colorStyles.border} hover:shadow-md active:scale-95 transition-transform`}
+            className={`flex flex-col border rounded-2xl text-left transition-all relative overflow-hidden group dark:bg-slate-800 dark:border-slate-700 bg-white border-slate-100 hover:${colorStyles.border} shadow-sm active:scale-95 transition-transform`}
           >
-            {/* Image Section */}
             <div className="h-28 w-full bg-slate-100 dark:bg-slate-700 relative overflow-hidden">
               {product.imageUrl ? (
-                <img 
-                  src={product.imageUrl} 
-                  alt={product.name} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
+                <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-300">
-                  <Package className="w-8 h-8" />
-                </div>
-              )}
-              {selectedCategory === 'All' && (
-                <span className="absolute top-2 left-2 text-[8px] font-bold text-white bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-full uppercase tracking-tighter">
-                  {product.category}
-                </span>
+                <div className="w-full h-full flex items-center justify-center text-slate-300"><Package className="w-8 h-8" /></div>
               )}
             </div>
-
             <div className="p-3">
-              <h5 className="font-semibold dark:text-slate-100 text-slate-800 line-clamp-1 text-xs">{product.name}</h5>
+              <h5 className="font-bold dark:text-slate-100 text-slate-800 text-xs truncate">{product.name}</h5>
               <div className="flex items-center justify-between mt-1">
-                <p className={`font-bold ${colorStyles.text} text-sm`}>₱{product.price.toLocaleString()}</p>
-                <div className="flex items-center gap-0.5 text-slate-400">
-                  <span className="text-[9px]">Stock:</span>
-                  {product.stock === 0 ? (
-                    <span className={`text-[12px] font-black ${colorStyles.text} leading-none`}>∞</span>
-                  ) : (
-                    <span className={`text-[9px] font-bold ${product.stock < 5 ? 'text-rose-500' : ''}`}>
-                      {product.stock}
-                    </span>
-                  )}
-                </div>
+                <p className={`font-black ${colorStyles.text} text-sm`}>₱{product.price.toLocaleString()}</p>
+                <span className={`text-[9px] font-bold ${product.stock < 5 && product.stock > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {product.stock === 0 ? '∞' : `Qty: ${product.stock}`}
+                </span>
               </div>
             </div>
           </button>
         ))}
-        {filteredProducts.length === 0 && (
-          <div className="col-span-2 text-center py-12">
-            <Package className="w-12 h-12 text-slate-100 dark:text-slate-800 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm italic">No products found</p>
-          </div>
-        )}
       </div>
 
-      {/* Floating Cart Button */}
+      {/* Floating Cart Button - WHITE bg with ORANGE icon as requested */}
       {cart.length > 0 && (
         <button
           onClick={() => setShowCart(true)}
-          className={`fixed bottom-[110px] right-6 w-14 h-14 ${colorStyles.bg} text-white rounded-full shadow-2xl flex items-center justify-center z-50 animate-bounce ${colorStyles.hover} transition-colors border-4 dark:border-slate-900 border-white`}
+          className="fixed bottom-[110px] right-6 w-16 h-16 bg-white dark:bg-slate-100 rounded-full shadow-2xl flex items-center justify-center z-50 animate-bounce transition-transform hover:scale-105 border-2 border-orange-500"
         >
-          <ShoppingCart className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold border-2 border-white dark:border-slate-900">
+          <ShoppingCart className="w-8 h-8 text-orange-600" />
+          <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[11px] w-6 h-6 rounded-full flex items-center justify-center font-black border-2 border-white">
             {cart.reduce((acc, i) => acc + i.quantity, 0)}
           </span>
         </button>
@@ -195,46 +161,31 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
 
       {/* Cart Modal */}
       {showCart && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm transition-opacity">
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md dark:bg-slate-800 bg-white rounded-t-[32px] p-6 max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm transition-opacity">
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md dark:bg-slate-800 bg-white rounded-t-[32px] p-6 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold dark:text-slate-100 text-slate-900">Order Summary</h3>
+              <h3 className="text-xl font-black dark:text-slate-100 text-slate-900">Items in Cart</h3>
               <button onClick={() => setShowCart(false)} className="p-2 dark:bg-slate-700 bg-slate-100 rounded-full">
                 <X className="w-5 h-5 dark:text-slate-300 text-slate-600" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-1">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
               {cart.map(item => (
                 <div key={item.productId} className="flex items-center justify-between py-3 border-b dark:border-slate-700 border-slate-50">
                   <div className="flex-1">
-                    <p className="font-semibold dark:text-slate-100 text-slate-800">{item.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      ₱{item.priceAtSale.toLocaleString()} each
-                    </p>
+                    <p className="font-bold dark:text-slate-100 text-slate-800">{item.name}</p>
+                    <p className="text-xs text-slate-500 font-medium">₱{item.priceAtSale.toLocaleString()} / unit</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
-                      <button 
-                        onClick={() => updateQuantity(item.productId, -1)}
-                        className={`w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-600 ${colorStyles.text} transition-colors`}
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-xs font-bold dark:text-slate-100 w-4 text-center">{item.quantity}</span>
-                      <button 
-                        onClick={() => updateQuantity(item.productId, 1)}
-                        className={`w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-600 ${colorStyles.text} transition-colors`}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700 rounded-xl px-2 py-1">
+                      <button onClick={() => updateQuantity(item.productId, -1)} className={`${colorStyles.text}`}><Minus className="w-4 h-4" /></button>
+                      <span className="text-sm font-black dark:text-slate-100 min-w-[20px] text-center">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.productId, 1)} className={`${colorStyles.text}`}><Plus className="w-4 h-4" /></button>
                     </div>
-                    
-                    <div className="flex flex-col items-end min-w-[60px]">
-                      <span className="font-bold dark:text-slate-100 text-slate-900">₱{(item.quantity * item.priceAtSale).toLocaleString()}</span>
-                      <button onClick={() => removeFromCart(item.productId)} className="text-rose-400 text-[10px] font-bold uppercase tracking-tighter hover:text-rose-500 transition-colors mt-0.5">
-                        Remove
-                      </button>
+                    <div className="flex flex-col items-end min-w-[70px]">
+                      <span className="font-black dark:text-slate-100 text-slate-900">₱{(item.quantity * item.priceAtSale).toLocaleString()}</span>
+                      <button onClick={() => removeFromCart(item.productId)} className="text-rose-400 text-[10px] font-bold uppercase mt-1">Remove</button>
                     </div>
                   </div>
                 </div>
@@ -242,15 +193,15 @@ const Register: React.FC<Props> = ({ products, categories: categoryList, onSaleC
             </div>
 
             <div className="mt-6 space-y-4">
-              <div className="flex items-center justify-between p-4 dark:bg-slate-700 bg-slate-50 rounded-2xl">
-                <span className="font-medium text-slate-500 dark:text-slate-300">Total Payable</span>
-                <span className="text-2xl font-black dark:text-slate-100 text-slate-900">₱{total.toLocaleString()}</span>
+              <div className="flex items-center justify-between p-5 dark:bg-slate-700 bg-slate-50 rounded-2xl border border-slate-100 dark:border-slate-600">
+                <span className="font-bold text-slate-500 dark:text-slate-300">Total Amount</span>
+                <span className="text-3xl font-black dark:text-slate-100 text-slate-900">₱{total.toLocaleString()}</span>
               </div>
               <button
                 onClick={handleCheckout}
-                className={`w-full py-4 ${colorStyles.bg} text-white rounded-2xl font-bold text-lg shadow-lg ${colorStyles.shadow} active:scale-95 transition-transform flex items-center justify-center gap-2`}
+                className={`w-full py-5 ${colorStyles.bg} text-white rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3`}
               >
-                Checkout Now <ChevronRight className="w-5 h-5" />
+                Complete Sale <ChevronRight className="w-6 h-6" />
               </button>
             </div>
           </div>
