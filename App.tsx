@@ -131,6 +131,7 @@ const App: React.FC = () => {
       borderLight: `border-${c}-100 dark:border-${c}-800`,
       accent: `text-${c}-500`,
       ring: `focus:ring-${c}-500`,
+      shadow: `shadow-${c}-200`
     };
   }, [primaryColor]);
 
@@ -148,7 +149,6 @@ const App: React.FC = () => {
   };
 
   const handleSaleComplete = async (newSale: Sale) => {
-    // 1. Update Local Stats for UI
     const updatedSales = [...sales, newSale];
     const updatedProducts = products.map(p => {
       const soldItem = newSale.items.find(si => si.productId === p.id);
@@ -163,7 +163,6 @@ const App: React.FC = () => {
     StorageService.saveSales(updatedSales);
     StorageService.saveProducts(updatedProducts);
 
-    // 2. Sync to Cloud Database (BranchCheckout)
     for (const item of newSale.items) {
       await ApiService.checkoutItem({
         branchCode: selectedBranch,
@@ -272,7 +271,7 @@ const App: React.FC = () => {
 
   return (
     <div className={`flex flex-col h-screen max-w-md mx-auto shadow-2xl overflow-hidden relative border-x transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-      <header className={`px-6 py-4 border-b flex items-center justify-between sticky top-0 z-10 transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <header className={`px-6 py-4 border-b flex items-center justify-between sticky top-0 z-20 transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
         <div className="flex items-center gap-3 overflow-hidden">
           <div className={`w-9 h-9 flex-shrink-0 ${colorStyles.bg} rounded-xl flex items-center justify-center shadow-lg`}>
             <Store className="w-5 h-5 text-white" />
@@ -296,12 +295,13 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <button onClick={() => { setShowSettings(true); setActiveSettingsPage('menu'); }} className={`p-2.5 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors`}>
+        <button onClick={() => { setShowSettings(true); setActiveSettingsPage('menu'); }} className={`p-2.5 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0`}>
           <SettingsIcon className="w-5 h-5" />
         </button>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      {/* FIXED HEIGHT MAIN AREA */}
+      <main className="flex-1 relative overflow-hidden flex flex-col">
         {activeView === 'dashboard' && <Dashboard sales={sales} products={products} theme={theme} colorStyles={colorStyles} storeName={storeName} />}
         {activeView === 'register' && (
           <Register 
@@ -333,7 +333,7 @@ const App: React.FC = () => {
         {activeView === 'reports' && <Reports theme={theme} colorStyles={colorStyles} />}
       </main>
 
-      <nav className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t px-6 py-2 flex justify-between items-center z-20 pb-safe transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+      <nav className={`border-t px-6 py-2 flex justify-between items-center z-20 pb-safe transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
         <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard className="w-5 h-5" />} label="Home" activeClass={colorStyles.text} theme={theme} />
         <NavItem active={activeView === 'register'} onClick={() => setActiveView('register')} icon={<ShoppingCart className="w-5 h-5" />} label="Cart" activeClass={colorStyles.text} theme={theme} />
         <NavItem active={activeView === 'fast-service'} onClick={() => setActiveView('fast-service')} icon={<Zap className="w-5 h-5" />} label="Fast" activeClass={colorStyles.text} theme={theme} />
@@ -378,9 +378,9 @@ const App: React.FC = () => {
               <button onClick={() => setShowSettings(false)} className="ml-auto text-slate-400 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar p-6">
+            <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
               {activeSettingsPage === 'menu' && (
-                <div className="space-y-4">
+                <div className="p-6 space-y-4">
                   <SettingsMenuBtn icon={<Settings2 className="w-5 h-5" />} label="General Store Info" desc="Branding & appearance" onClick={() => setActiveSettingsPage('general')} theme={theme} />
                   <SettingsMenuBtn icon={<Tags className="w-5 h-5" />} label="Categories" desc="Item group management" onClick={() => setActiveSettingsPage('categories')} theme={theme} />
                   <SettingsMenuBtn icon={<Building2 className="w-5 h-5" />} label="Branches" desc="Cloud branch sync" onClick={() => setActiveSettingsPage('branches')} theme={theme} />
@@ -392,7 +392,7 @@ const App: React.FC = () => {
                         message: 'This will clear all local storage. Cloud data is safe.',
                         onConfirm: () => StorageService.resetData()
                       });
-                    }} className="w-full py-3 bg-rose-600/10 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest">
+                    }} className="w-full py-4 bg-rose-600/10 text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-rose-600/20 active:scale-95 transition-transform">
                       Reset Local Data
                     </button>
                   </div>
@@ -400,12 +400,12 @@ const App: React.FC = () => {
               )}
 
               {activeSettingsPage === 'general' && (
-                <div className="space-y-8">
+                <div className="p-6 space-y-8">
                   <div className="space-y-3">
                     <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Store Branding</label>
                     <div className="flex gap-2">
-                      <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} className={`flex-1 p-3.5 rounded-2xl text-sm font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100 focus:border-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-300'}`} />
-                      <button onClick={handleUpdateStoreRemote} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}>{isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}</button>
+                      <input type="text" value={storeName} onChange={e => setStoreName(e.target.value)} className={`flex-1 min-w-0 p-3.5 rounded-2xl text-sm font-bold outline-none border transition-colors ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100 focus:border-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-slate-300'}`} />
+                      <button onClick={handleUpdateStoreRemote} className={`flex-shrink-0 p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}>{isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}</button>
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -428,21 +428,21 @@ const App: React.FC = () => {
               )}
 
               {activeSettingsPage === 'categories' && (
-                <div className="space-y-6">
+                <div className="p-6 space-y-6">
                   <div className="space-y-3">
                     <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Add Category</label>
                     <div className="flex gap-2">
-                      <input type="text" placeholder="e.g. Snacks..." className={`flex-1 p-3.5 rounded-2xl text-sm font-bold outline-none border ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-200'}`} value={newCatName} onChange={e => setNewCatName(e.target.value)} />
-                      <button onClick={handleAddCategory} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
+                      <input type="text" placeholder="e.g. Snacks..." className={`flex-1 min-w-0 p-3.5 rounded-2xl text-sm font-bold outline-none border ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-200'}`} value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+                      <button onClick={handleAddCategory} className={`flex-shrink-0 p-3.5 rounded-2xl ${colorStyles.bg} text-white active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
                     </div>
                   </div>
                   <div className="space-y-2">
                     {categories.map(c => (
                       <div key={c.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm'}`}>
                         {editingCatId === c.id ? (
-                          <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingCatName} onChange={e => setEditingCatName(e.target.value)} /><button onClick={() => handleUpdateCategory(c.id)}><Check className="w-5 h-5 text-emerald-500" /></button></div>
+                          <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 min-w-0 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingCatName} onChange={e => setEditingCatName(e.target.value)} /><button onClick={() => handleUpdateCategory(c.id)} className="flex-shrink-0"><Check className="w-5 h-5 text-emerald-500" /></button></div>
                         ) : (
-                          <><span className="text-sm font-bold">{c.category}</span><div className="flex items-center gap-2"><button onClick={() => { setEditingCatId(c.id); setEditingCatName(c.category); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteCategory(c.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
+                          <><span className="text-sm font-bold truncate pr-4">{c.category}</span><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => { setEditingCatId(c.id); setEditingCatName(c.category); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteCategory(c.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
                         )}
                       </div>
                     ))}
@@ -451,27 +451,27 @@ const App: React.FC = () => {
               )}
 
               {activeSettingsPage === 'branches' && (
-                <div className="space-y-8">
+                <div className="p-6 space-y-8">
                    <div className="space-y-3">
-                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Select Branch</label>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Select Operating Branch</label>
                     <select value={selectedBranch} onChange={(e) => handleSelectBranch(e.target.value)} className={`w-full p-4 rounded-2xl text-sm font-bold outline-none border ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-200'}`}>
                       <option value="">No branch selected</option>
                       {branches.map(b => <option key={b.id} value={b.branchCode}>{b.branchCode}</option>)}
                     </select>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Add Branch Code</label>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest block">Add New Branch Code</label>
                     <div className="flex gap-2">
-                      <input type="text" placeholder="BR-101..." className={`flex-1 p-3.5 rounded-2xl text-sm font-bold border ${theme === 'dark' ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'}`} value={newBranchCode} onChange={e => setNewBranchCode(e.target.value)} />
-                      <button onClick={handleAddBranch} className={`p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
+                      <input type="text" placeholder="BR-101..." className={`flex-1 min-w-0 p-3.5 rounded-2xl text-sm font-bold border ${theme === 'dark' ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-200'}`} value={newBranchCode} onChange={e => setNewBranchCode(e.target.value)} />
+                      <button onClick={handleAddBranch} className={`flex-shrink-0 p-3.5 rounded-2xl ${colorStyles.bg} text-white shadow-lg active:scale-95 transition-transform`}><Plus className="w-5 h-5" /></button>
                     </div>
                     <div className="space-y-2">
                       {branches.map(b => (
                         <div key={b.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm'}`}>
                           {editingBranchId === b.id ? (
-                            <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingBranchCode} onChange={e => setEditingBranchCode(e.target.value)} /><button onClick={() => handleUpdateBranch(b.id)}><Check className="w-5 h-5 text-emerald-500" /></button></div>
+                            <div className="flex-1 flex gap-2"><input autoFocus className="flex-1 min-w-0 bg-transparent border-b border-slate-400 outline-none text-sm font-bold" value={editingBranchCode} onChange={e => setEditingBranchCode(e.target.value)} /><button onClick={() => handleUpdateBranch(b.id)} className="flex-shrink-0"><Check className="w-5 h-5 text-emerald-500" /></button></div>
                           ) : (
-                            <><div className="flex items-center gap-3"><div className={`w-2 h-2 rounded-full ${selectedBranch === b.branchCode ? 'bg-emerald-500' : 'bg-slate-300'}`} /><span className="text-sm font-bold">{b.branchCode}</span></div><div className="flex items-center gap-2"><button onClick={() => { setEditingBranchId(b.id); setEditingBranchCode(b.branchCode); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteBranch(b.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
+                            <><div className="flex items-center gap-3 overflow-hidden"><div className={`w-2 h-2 flex-shrink-0 rounded-full ${selectedBranch === b.branchCode ? 'bg-emerald-500' : 'bg-slate-300'}`} /><span className="text-sm font-bold truncate">{b.branchCode}</span></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => { setEditingBranchId(b.id); setEditingBranchCode(b.branchCode); }} className="p-1.5 opacity-50"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDeleteBranch(b.id)} className="p-1.5 text-rose-400"><Trash2 className="w-4 h-4" /></button></div></>
                           )}
                         </div>
                       ))}
@@ -489,14 +489,14 @@ const App: React.FC = () => {
 
 const SettingsMenuBtn: React.FC<{ icon: React.ReactNode, label: string, desc: string, onClick: () => void, theme: string }> = ({ icon, label, desc, onClick, theme }) => (
   <button onClick={onClick} className={`w-full flex items-center gap-4 p-5 rounded-[24px] text-left transition-all border group active:scale-[0.98] ${theme === 'dark' ? 'bg-slate-700 border-slate-600 text-slate-100' : 'bg-white border-slate-100 shadow-sm text-slate-900'}`}>
-    <div className={`p-3 rounded-2xl transition-all ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500'} group-hover:scale-110`}>{icon}</div>
+    <div className={`p-3 rounded-2xl transition-all flex-shrink-0 ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500'} group-hover:scale-110`}>{icon}</div>
     <div className="flex-1 overflow-hidden"><h4 className="text-sm font-bold truncate">{label}</h4><p className="text-[11px] text-slate-500 truncate">{desc}</p></div>
-    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:translate-x-1 transition-transform" />
+    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:translate-x-1 transition-transform flex-shrink-0" />
   </button>
 );
 
 const NavItem: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string; activeClass: string, theme: string }> = ({ active, onClick, icon, label, activeClass, theme }) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1 py-1 transition-all ${active ? activeClass : (theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}`}>
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 py-1 px-2 transition-all min-w-[60px] ${active ? activeClass : (theme === 'dark' ? 'text-slate-500' : 'text-slate-400')}`}>
     <div className={`transition-transform duration-300 ${active ? 'scale-110' : 'scale-100'}`}>{icon}</div>
     <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
   </button>

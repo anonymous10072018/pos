@@ -60,7 +60,7 @@ const FastService: React.FC<Props> = ({
   const changeDue = Math.max(0, cashReceived - total);
 
   const addToCart = (product: Product) => {
-    if (!selectedBranch) return; // Should be blocked by UI but added for safety
+    if (!selectedBranch) return;
     setCart(prev => {
       const existing = prev.find(i => i.productId === product.id);
       if (existing) {
@@ -109,11 +109,10 @@ const FastService: React.FC<Props> = ({
     }, 800);
   };
 
-  // Branch Selection Guard
   if (!selectedBranch) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-500">
-        <div className={`w-20 h-20 rounded-3xl ${colorStyles.bgLight} flex items-center justify-center mb-6`}>
+      <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-900 overflow-y-auto no-scrollbar">
+        <div className={`w-20 h-20 rounded-3xl ${colorStyles.bgLight} flex items-center justify-center mb-6 flex-shrink-0`}>
            <MapPin className={`w-10 h-10 ${colorStyles.text}`} />
         </div>
         <div className="text-center space-y-2 mb-8">
@@ -154,14 +153,12 @@ const FastService: React.FC<Props> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
-      {/* Split Layout Container */}
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden h-full">
         
         {/* LEFT SIDE: Product Selection */}
-        <div className="flex-[1.4] flex flex-col border-r dark:border-slate-800 bg-white dark:bg-slate-900">
-          {/* Categories Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-3 border-b dark:border-slate-800 sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10">
+        <div className="flex-[1.4] flex flex-col border-r dark:border-slate-800 bg-white dark:bg-slate-900 min-w-0">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-3 border-b dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10 flex-shrink-0">
             {categoryNames.map(cat => (
               <button
                 key={cat}
@@ -177,7 +174,6 @@ const FastService: React.FC<Props> = ({
             ))}
           </div>
 
-          {/* Square Grid - 2 Per Row */}
           <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-3 no-scrollbar content-start">
             {filteredProducts.map(product => (
               <button
@@ -191,10 +187,10 @@ const FastService: React.FC<Props> = ({
                 
                 <div className="relative z-10 flex flex-col items-center text-center w-full h-full justify-between py-1">
                   <span className="text-[8px] font-black uppercase text-slate-400 tracking-tighter truncate w-full">{product.category}</span>
-                  <h5 className="font-bold text-[11px] leading-tight dark:text-white text-slate-900 uppercase line-clamp-2 px-1">
+                  <h5 className="font-bold text-[10px] leading-tight dark:text-white text-slate-900 uppercase line-clamp-2 px-1">
                     {product.name}
                   </h5>
-                  <div className={`mt-1 px-3 py-1 rounded-lg ${colorStyles.bgLight} ${colorStyles.text} font-black text-[10px]`}>
+                  <div className={`mt-1 px-3 py-1 rounded-lg ${colorStyles.bgLight} ${colorStyles.text} font-black text-[9px]`}>
                     ₱{product.price.toLocaleString()}
                   </div>
                 </div>
@@ -209,46 +205,50 @@ const FastService: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* RIGHT SIDE: Summary / Bill */}
-        <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-800/50 shadow-inner">
-          <div className="p-4 border-b dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-800">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-              <ShoppingCart className={`w-3 h-3 ${colorStyles.text}`} /> Bill
+        {/* RIGHT SIDE: Summary / Bill (Pinned bottom) */}
+        <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-800/50 shadow-inner min-w-0">
+          <div className="p-4 border-b dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-800 flex-shrink-0">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 truncate">
+              <ShoppingCart className={`w-3 h-3 ${colorStyles.text} flex-shrink-0`} /> Bill
             </h4>
-            <button onClick={clearCart} className="text-slate-300 hover:text-rose-500 p-1 transition-colors"><RotateCcw className="w-3.5 h-3.5" /></button>
+            <button onClick={clearCart} className="text-slate-300 hover:text-rose-500 p-1 transition-colors flex-shrink-0"><RotateCcw className="w-3.5 h-3.5" /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
             {cart.map(item => (
-              <div key={item.productId} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm animate-in slide-in-from-right-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[10px] dark:text-slate-200 truncate leading-none mb-1">{item.name}</p>
+              <div key={item.productId} className="flex flex-col gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm animate-in slide-in-from-right-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-[10px] dark:text-slate-200 truncate leading-tight mb-1">{item.name}</p>
                   <p className="text-[9px] text-slate-400 font-bold">₱{item.priceAtSale} × {item.quantity}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateQuantity(item.productId, -1)} className={`p-1 rounded-md bg-slate-50 dark:bg-slate-700 ${colorStyles.text}`}><Minus className="w-3 h-3" /></button>
-                  <span className="text-[10px] font-black dark:text-white w-3 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.productId, 1)} className={`p-1 rounded-md bg-slate-50 dark:bg-slate-700 ${colorStyles.text}`}><Plus className="w-3 h-3" /></button>
+                <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700/50 pt-1.5">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateQuantity(item.productId, -1)} className={`p-1 rounded-md bg-slate-50 dark:bg-slate-700 ${colorStyles.text}`}><Minus className="w-2.5 h-2.5" /></button>
+                    <span className="text-[9px] font-black dark:text-white w-3 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.productId, 1)} className={`p-1 rounded-md bg-slate-50 dark:bg-slate-700 ${colorStyles.text}`}><Plus className="w-2.5 h-2.5" /></button>
+                  </div>
+                  <span className={`text-[10px] font-black ${colorStyles.text}`}>₱{(item.priceAtSale * item.quantity).toLocaleString()}</span>
                 </div>
               </div>
             ))}
             {cart.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10 opacity-40">
-                <Package className="w-8 h-8 mb-2" />
-                <p className="text-[8px] font-black uppercase tracking-widest">No Items</p>
+                <Package className="w-8 h-8 mb-2 flex-shrink-0" />
+                <p className="text-[8px] font-black uppercase tracking-widest">Empty</p>
               </div>
             )}
           </div>
 
-          <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-800 space-y-3">
+          {/* BOTTOM TOTAL AREA: ALWAYS PINNED */}
+          <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-800 space-y-3 flex-shrink-0">
             <div className="flex justify-between items-end">
                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</span>
-               <span className={`text-2xl font-black ${colorStyles.text}`}>₱{total.toLocaleString()}</span>
+               <span className={`text-xl font-black ${colorStyles.text}`}>₱{total.toLocaleString()}</span>
             </div>
             <button
               onClick={() => setShowCheckout(true)}
               disabled={cart.length === 0}
-              className={`w-full py-4 ${colorStyles.bg} text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-30 disabled:grayscale`}
+              className={`w-full py-4 ${colorStyles.bg} text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-30 disabled:grayscale`}
             >
               Checkout <ChevronRight className="w-4 h-4" />
             </button>
@@ -271,7 +271,7 @@ const FastService: React.FC<Props> = ({
               <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className={`text-base font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>Payment</h3>
-                  <button onClick={() => setShowCheckout(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full"><X className="w-4 h-4" /></button>
+                  <button onClick={() => setShowCheckout(false)} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full flex-shrink-0"><X className="w-4 h-4" /></button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

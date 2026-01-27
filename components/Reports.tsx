@@ -108,92 +108,94 @@ const Reports: React.FC<Props> = ({ theme, colorStyles }) => {
   }, [colorStyles]);
 
   return (
-    <div className="p-6 space-y-8 transition-colors dark:bg-slate-900 min-h-full pb-32">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900">Cloud Analytics</h2>
-          <p className="text-slate-500 text-sm">Synchronized with database.</p>
+    <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
+      <div className="p-6 space-y-8 transition-colors dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900 truncate">Cloud Analytics</h2>
+            <p className="text-slate-500 text-xs">Synchronized with database.</p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+             <button 
+              onClick={fetchHistory}
+              className={`p-2.5 rounded-2xl bg-white dark:bg-slate-800 border dark:border-slate-700 shadow-sm text-slate-400 hover:text-slate-600 active:scale-95 transition-transform`}
+            >
+              <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button 
+              onClick={exportAllHistory}
+              className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 p-2.5 rounded-2xl shadow-sm flex items-center gap-2 text-xs font-black uppercase tracking-tighter hover:bg-slate-50 active:scale-95 transition-transform`}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              DB
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-           <button 
-            onClick={fetchHistory}
-            className={`p-2.5 rounded-2xl bg-white dark:bg-slate-800 border dark:border-slate-700 shadow-sm text-slate-400 hover:text-slate-600`}
-          >
-            <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button 
-            onClick={exportAllHistory}
-            className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 p-2.5 rounded-2xl shadow-sm flex items-center gap-2 text-xs font-bold hover:bg-slate-50 transition-colors`}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            Export DB
-          </button>
-        </div>
-      </div>
 
-      {/* Stats Summary */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
-        <div className="space-y-1">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database Revenue</p>
-          <h3 className="text-3xl font-black dark:text-slate-100 text-slate-900">₱{totalRevenue.toLocaleString()}</h3>
+        {/* Stats Summary */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database Revenue</p>
+            <h3 className="text-3xl font-black dark:text-slate-100 text-slate-900">₱{totalRevenue.toLocaleString()}</h3>
+          </div>
+          <div className={`w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shadow-inner flex-shrink-0`}>
+            <TrendingUp className="w-7 h-7" />
+          </div>
         </div>
-        <div className={`w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shadow-inner`}>
-          <TrendingUp className="w-7 h-7" />
-        </div>
-      </div>
 
-      {/* Weekly Trend Chart */}
-      <div className="space-y-4">
-        <h4 className={`text-xs font-black uppercase tracking-widest dark:text-slate-400 text-slate-400 flex items-center gap-2`}>
-          <Calendar className={`w-3.5 h-3.5 ${colorStyles.text}`} />
-          Last 7 Days Revenue
-        </h4>
-        <div className="h-64 bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          {loading ? (
-             <div className="h-full flex items-center justify-center"><Loader2 className={`w-8 h-8 ${colorStyles.text} animate-spin`} /></div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyData}>
-                <defs>
-                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={chartColor} stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "#334155" : "#f1f5f9"} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} tickFormatter={(val) => `₱${val}`} />
-                <Tooltip 
-                  formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff' }}
-                />
-                <Area type="monotone" dataKey="total" stroke={chartColor} strokeWidth={4} fillOpacity={1} fill="url(#colorTotal)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
+        {/* Weekly Trend Chart */}
+        <div className="space-y-4">
+          <h4 className={`text-xs font-black uppercase tracking-widest dark:text-slate-400 text-slate-400 flex items-center gap-2`}>
+            <Calendar className={`w-3.5 h-3.5 ${colorStyles.text}`} />
+            7-Day Revenue
+          </h4>
+          <div className="h-64 bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            {loading ? (
+               <div className="h-full flex items-center justify-center"><Loader2 className={`w-8 h-8 ${colorStyles.text} animate-spin`} /></div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weeklyData}>
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "#334155" : "#f1f5f9"} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} tickFormatter={(val) => `₱${val}`} />
+                  <Tooltip 
+                    formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff' }}
+                  />
+                  <Area type="monotone" dataKey="total" stroke={chartColor} strokeWidth={4} fillOpacity={1} fill="url(#colorTotal)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Top Products Bar Chart */}
-      <div className="space-y-4">
-        <h4 className="text-xs font-black uppercase tracking-widest dark:text-slate-400 text-slate-400">Top Selling Products</h4>
-        <div className="h-64 bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          {loading ? (
-             <div className="h-full flex items-center justify-center"><Loader2 className={`w-8 h-8 ${colorStyles.text} animate-spin`} /></div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topItems} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={100} tick={{fontSize: 10, fill: '#64748b', fontWeight: 'bold'}} />
-                <Tooltip cursor={{fill: 'transparent'}} />
-                <Bar dataKey="count" radius={[0, 8, 8, 0]}>
-                  {topItems.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? chartColor : `${chartColor}aa`} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+        {/* Top Products Bar Chart */}
+        <div className="space-y-4 pb-20">
+          <h4 className="text-xs font-black uppercase tracking-widest dark:text-slate-400 text-slate-400">Top Selling Products</h4>
+          <div className="h-64 bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            {loading ? (
+               <div className="h-full flex items-center justify-center"><Loader2 className={`w-8 h-8 ${colorStyles.text} animate-spin`} /></div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topItems} layout="vertical">
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={80} tick={{fontSize: 9, fill: '#64748b', fontWeight: 'bold'}} />
+                  <Tooltip cursor={{fill: 'transparent'}} />
+                  <Bar dataKey="count" radius={[0, 8, 8, 0]}>
+                    {topItems.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? chartColor : `${chartColor}aa`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
       </div>
     </div>
